@@ -94,8 +94,20 @@ type providerJSON struct {
 // The issuer is the URL identifier for the service. For example: "https://accounts.google.com"
 // or "https://login.salesforce.com".
 func NewProvider(ctx context.Context, issuer string) (*Provider, error) {
-	wellKnown := strings.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
-	req, err := http.NewRequest("GET", wellKnown, nil)
+	p, err := NewProviderByDiscoveryURL(ctx, strings.TrimSuffix(issuer, "/")+"/.well-known/openid-configuration")
+	if err != nil {
+		return nil, err
+	}
+
+	if p.issuer != issuer {
+		return nil, fmt.Errorf("oidc: issuer did not match the issuer returned by provider, expected %q got %q", issuer, p.issuer)
+	}
+
+	return p, nil
+}
+
+func NewProviderByDiscoveryURL(ctx context.Context, discoveryURL string) (*Provider, error) {
+	req, err := http.NewRequest("GET", discoveryURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -120,9 +132,6 @@ func NewProvider(ctx context.Context, issuer string) (*Provider, error) {
 		return nil, fmt.Errorf("oidc: failed to decode provider discovery object: %v", err)
 	}
 
-	if p.Issuer != issuer {
-		return nil, fmt.Errorf("oidc: issuer did not match the issuer returned by provider, expected %q got %q", issuer, p.Issuer)
-	}
 	return &Provider{
 		issuer:       p.Issuer,
 		authURL:      p.AuthURL,
